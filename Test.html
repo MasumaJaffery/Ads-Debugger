@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AdSense Debugger</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    #ad-container {
+      border: 3px solid #f00;
+      min-height: 250px;
+      width: 100vw;      
+      position: relative;
+      margin: 20px 0;
+    }
+    #debug {
+      background: #f0f0f0;
+      padding: 15px;
+      border-radius: 5px;
+      font-family: monospace;
+    }
+    .visible { border-color: #0f0 !important; }
+  </style>
+</head>
+<body>
+
+<h1>AdSense Hard Refresh Test</h1>
+
+<div id="ad-container">
+  <ins class="adsbygoogle"
+       style="display:block"
+       data-ad-client="ca-pub-8223588809519131"
+       data-ad-slot="4089476757"
+       data-ad-format="auto"
+       data-full-width-responsive="true"></ins>
+</div>
+
+<div id="debug">
+  <h3>Debug Console:</h3>
+  <div id="log"></div>
+  <button onclick="forceAdRefresh()">FORCE REFRESH</button>
+  <button onclick="inspectAd()">INSPECT AD</button>
+</div>
+
+<script>
+  const LOG = document.getElementById('log');
+  const adContainer = document.getElementById('ad-container');
+  let refreshCount = 0;
+  const MAX_REFRESHES = 3;
+  let debugInterval = null;
+
+  function log(message, type = 'info') {
+    const line = document.createElement('div');
+    line.style.color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'blue';
+    line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+    LOG.appendChild(line);
+    console.log(message);
+  }
+
+  function inspectAd() {
+    const iframe = document.querySelector('.adsbygoogle iframe');
+    if (!iframe) {
+      log("ERROR: No iframe found - AdSense not loaded", 'error');
+      return;
+    }
+
+    log("=== AD INSPECTION ===");
+    log(`Iframe dimensions: ${iframe.offsetWidth}x${iframe.offsetHeight}px`);
+    log(`Source: ${iframe.src || 'none'}`);
+    log(`Visibility: ${window.getComputedStyle(iframe).visibility}`);
+  }
+
+  function forceAdRefresh() {
+    if (refreshCount >= MAX_REFRESHES) {
+      log("Maximum refresh attempts reached", 'error');
+      return;
+    }
+
+    refreshCount++;
+    log(`\n=== ATTEMPTING REFRESH #${refreshCount} ===`);
+
+    // Remove old ad
+    const oldAd = document.querySelector('.adsbygoogle');
+    if (oldAd) oldAd.remove();
+
+    // Create new ad element
+    const newAd = document.createElement('ins');
+    newAd.className = 'adsbygoogle';
+    newAd.style.display = 'block';
+    newAd.dataset.adClient = 'ca-pub-8223588809519131';
+    newAd.dataset.adSlot = '4089476757';
+    newAd.dataset.adFormat = 'auto';
+    newAd.dataset.fullWidthResponsive = 'true';
+
+    adContainer.innerHTML = '';
+    adContainer.appendChild(newAd);
+    adContainer.classList.remove('visible');
+
+    // Request ad
+    setTimeout(() => {
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+      log("New ad requested");
+
+      let attempts = 0;
+      clearInterval(debugInterval);
+      debugInterval = setInterval(() => {
+        const iframe = document.querySelector('.adsbygoogle iframe');
+        attempts++;
+
+        if (iframe && iframe.offsetHeight > 0) {
+          clearInterval(debugInterval);
+          adContainer.classList.add('visible');
+          log("Ad content detected!", 'success');
+        } else if (attempts > 15) {
+          clearInterval(debugInterval);
+          log("Ad check timed out", 'error');
+        }
+      }, 1000);
+    }, 100);
+  }
+
+  // Initial script load
+  log("Loading AdSense...");
+  const script = document.createElement('script');
+  script.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8223588809519131';
+  script.async = true;
+  script.crossOrigin = 'anonymous';
+
+  script.onload = () => {
+    log("AdSense script loaded - initializing ad");
+    (window.adsbygoogle = window.adsbygoogle || []).push({});
+
+    setTimeout(() => {
+      const iframe = document.querySelector('.adsbygoogle iframe');
+      if (!iframe || iframe.offsetHeight === 0) {
+        log("Initial ad not visible - try FORCE REFRESH", 'error');
+      } else {
+        adContainer.classList.add('visible');
+        log("Ad visible on first load", 'success');
+      }
+    }, 3000);
+  };
+
+  script.onerror = () => log("ERROR: Failed to load AdSense script", 'error');
+  document.head.appendChild(script);
+</script>
+
+</body>
+</html>
